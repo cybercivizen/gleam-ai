@@ -14,18 +14,42 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import {
   getAccessToken,
-  getConversationMessages,
-  getConversations,
-  getMessageDetails,
+  getAllMessages,
   getStoredToken,
   getUserProfile,
 } from "./actions";
+import { DataTable } from "./(messages)/data-table";
+import { columns } from "./(messages)/columns";
 
 export default function Home() {
   const [hasToken, setHasToken] = useState<boolean | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [messages, setMessages] = useState<
+    Array<{
+      username: string;
+      content: string;
+      timestamp: string;
+    }>
+  >([]);
+
+  const [isTableLoading, setIsTableLoading] = useState<boolean>(false);
+
+  const URL =
+    process.env.NEXT_PUBLIC_IG_LOGIN_EMBEDDING_URL ||
+    "https://www.instagram.com/oauth/authorize?force_reauth=true&client_id=1520790535695330&redirect_uri=https://bd89a4fd1c1a.ngrok-free.app&response_type=code&scope=instagram_business_basic%2Cinstagram_business_manage_messages%2Cinstagram_business_manage_comments%2Cinstagram_business_content_publish%2Cinstagram_business_manage_insights";
+
+  const fetchMessagesAsync = async () => {
+    setIsTableLoading(true);
+    const existingToken = await getStoredToken();
+
+    if (existingToken) {
+      const allMessages = await getAllMessages(existingToken);
+      setMessages(allMessages);
+    }
+    setIsTableLoading(false);
+  };
 
   useEffect(() => {
     const handleInstagramAuth = async () => {
@@ -42,26 +66,8 @@ export default function Home() {
           setUserProfile(profile.data);
         }
 
-        const conversations = await getConversations(existingToken);
-        console.log("Instagram Conversations:", conversations);
+        await fetchMessagesAsync();
 
-        const convId = conversations?.data?.data?.[0]?.id;
-        console.log("Extracted Conversation ID:", convId);
-
-        if (convId) {
-          console.log("First Conversation ID:", convId);
-          const messages = await getConversationMessages(convId, existingToken);
-          console.log("Conversation Messages:", messages);
-          const messageId = messages?.data?.messages?.data?.[3]?.id;
-          if (messageId) {
-            console.log("First Message ID:", messageId);
-            const messageDetails = await getMessageDetails(
-              messageId,
-              existingToken
-            );
-            console.log("Message Details:", messageDetails);
-          }
-        }
         return;
       }
 
@@ -109,41 +115,47 @@ export default function Home() {
         <Card className="w-full max-w-xl">
           <CardContent>
             {userProfile ? (
-              <div className="flex items-center justify-between gap-6">
-                <div className="flex flex-col">
-                  <CardTitle className="text-2xl">Welcome Back!</CardTitle>
-                  <CardDescription>
-                    Your Instagram account is connected
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-3">
-                  {userProfile.profile_picture_url && (
-                    <Image
-                      src={userProfile.profile_picture_url}
-                      alt={userProfile.username}
-                      width={64}
-                      height={64}
-                      className="w-16 h-16 rounded-full object-cover"
-                    />
-                  )}
+              <div className="flex flex-col gap-6">
+                <div className="flex items-center justify-between gap-6">
                   <div className="flex flex-col">
-                    <p className="font-semibold text-lg">
-                      @{userProfile.username}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      ID: {userProfile.user_id}
-                    </p>
+                    <CardTitle className="text-2xl">Welcome Back!</CardTitle>
+                    <CardDescription>
+                      Your Instagram account is connected
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {userProfile.profile_picture_url && (
+                      <Image
+                        src={userProfile.profile_picture_url}
+                        alt={userProfile.username}
+                        width={64}
+                        height={64}
+                        className="w-16 h-16 rounded-full object-cover"
+                      />
+                    )}
+                    <div className="flex flex-col">
+                      <p className="font-semibold text-lg">
+                        @{userProfile.username}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        ID: {userProfile.user_id}
+                      </p>
+                    </div>
                   </div>
                 </div>
+
+                <div className="w-full flex flex-col">
+                  <Button
+                    className="mb-4"
+                    onClick={fetchMessagesAsync}
+                    disabled={isTableLoading}
+                  >
+                    {isTableLoading ? "Refreshing..." : "Refresh Messages"}
+                  </Button>
+                  <DataTable columns={columns} data={messages} />
+                </div>
               </div>
-            ) : (
-              <div className="flex flex-col">
-                <CardTitle className="text-2xl">Welcome Back!</CardTitle>
-                <CardDescription>
-                  You&apos;re all set to analyze your DMs
-                </CardDescription>
-              </div>
-            )}
+            ) : null}
           </CardContent>
         </Card>
       ) : (
@@ -157,7 +169,7 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <Button className="w-full" size="lg" asChild>
-              <Link href="https://www.instagram.com/oauth/authorize?force_reauth=true&client_id=1520790535695330&redirect_uri=https://9a5b7c1b0363.ngrok-free.app&response_type=code&scope=instagram_business_basic%2Cinstagram_business_manage_messages%2Cinstagram_business_manage_comments%2Cinstagram_business_content_publish%2Cinstagram_business_manage_insights">
+              <Link href={URL}>
                 <Instagram className="mr-2" />
                 Sign in with Instagram
               </Link>

@@ -1,5 +1,6 @@
 "use server";
 
+import { Message } from "@/lib/types";
 import { cookies } from "next/headers";
 
 export async function getStoredToken() {
@@ -109,10 +110,10 @@ async function getLongLivedToken(shortLivedToken: string) {
   }
 }
 
-export async function getConversations(userToken: string) {
+export async function getConversations(accessToken: string) {
   try {
     const response = await fetch(
-      `https://graph.instagram.com/v24.0/me/conversations?platform=instagram&access_token=${userToken}`
+      `https://graph.instagram.com/v24.0/me/conversations?platform=instagram&access_token=${accessToken}`
     );
 
     if (!response.ok) {
@@ -126,7 +127,6 @@ export async function getConversations(userToken: string) {
     }
 
     const data = await response.json();
-    console.log("Instagram conversations fetched successfully:", data);
     return { success: true, data };
   } catch (error) {
     console.error("Failed to fetch Instagram conversations:", error);
@@ -160,7 +160,6 @@ export async function getConversationMessages(
     }
 
     const data = await response.json();
-    console.log("Conversation messages fetched successfully:", data);
     return { success: true, data };
   } catch (error) {
     console.error("Failed to fetch conversation messages:", error);
@@ -192,7 +191,6 @@ export async function getMessageDetails(
     }
 
     const data = await response.json();
-    console.log("Message details fetched successfully:", data);
     return { success: true, data };
   } catch (error) {
     console.error("Failed to fetch message details:", error);
@@ -204,6 +202,63 @@ export async function getMessageDetails(
           : "Failed to fetch message details",
     };
   }
+}
+
+export async function getAllMessages(accessToken: string) {
+  const conversationsResult = await getConversations(accessToken);
+  const allConversationsIds = conversationsResult.success
+    ? conversationsResult.data.data.map((conv: { id: string }) => conv.id)
+    : [];
+
+  // Use Promise.all to wait for all async operations to complete
+  const allMessagesIdsArrays = await Promise.all(
+    allConversationsIds.map(async (id: string) => {
+      const conversationMessages = await getConversationMessages(
+        id,
+        accessToken
+      );
+      const messagesIds = conversationMessages.success
+        ? conversationMessages.data.messages.data.map(
+            (msg: { id: string }) => msg.id
+          )
+        : [];
+      return messagesIds;
+    })
+  );
+
+  // Flatten the array of arrays into a single array
+  const allMessagesIds = allMessagesIdsArrays.flat();
+  const allMessagesArrays = await Promise.all(
+    allMessagesIds.map(async (msgId: string) => {
+      const messageDetails = await getMessageDetails(msgId, accessToken);
+      return messageDetails;
+    })
+  );
+
+  // Map Instagram API response to Message type
+  const allMessages: Message[] = allMessagesArrays
+    .filter((res) => res.success)
+    .map((res) => {
+      // Format timestamp to readable format
+      const date = new Date(res.data.created_time || "");
+      const formattedTimestamp = date
+        .toLocaleString("en-US", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        })
+        .replace(/(\d+)\/(\d+)\/(\d+),/, "$3-$1-$2");
+
+      return {
+        username: res.data.from?.username || "Unknown",
+        content: res.data.message || "",
+        timestamp: formattedTimestamp,
+      };
+    });
+  return allMessages;
 }
 
 export async function getUserProfile(accessToken: string) {
