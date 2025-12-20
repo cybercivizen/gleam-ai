@@ -8,7 +8,13 @@ export async function getStoredToken() {
   return cookieStore.get("instagram_access_token")?.value || null;
 }
 
-export async function getAccessToken(code: string) {
+export async function clearCookies() {
+  const cookieStore = await cookies();
+  cookieStore.delete("instagram_access_token");
+  cookieStore.delete("instagram_username");
+}
+
+export async function setupAccessToken(code: string) {
   const slv = await getShortLivedToken(code);
   if (!slv.success) {
     throw new Error("Failed to get short-lived token");
@@ -236,8 +242,11 @@ export async function getAllMessages(accessToken: string) {
   );
 
   // Map Instagram API response to Message type
+  const cookieStore = await cookies();
+  const username: string = cookieStore.get("instagram_username")
+    ?.value as string;
   const allMessages: Message[] = allMessagesArrays
-    .filter((res) => res.success)
+    .filter((res) => res.success && res.data.from?.username != username)
     .map((res) => {
       // Format timestamp to readable format
       const date = new Date(res.data.created_time || "");
@@ -253,7 +262,7 @@ export async function getAllMessages(accessToken: string) {
         .replace(/(\d+)\/(\d+)\/(\d+),/, "$3-$1-$2");
 
       return {
-        username: res.data.from?.username || "Unknown",
+        username: "@" + (res.data.from?.username || "Unknown"),
         content: res.data.message || "",
         timestamp: formattedTimestamp,
       };
@@ -279,6 +288,15 @@ export async function getUserProfile(accessToken: string) {
 
     const data = await response.json();
     console.log("User profile fetched successfully:", data);
+
+    const cookieStore = await cookies();
+    cookieStore.set("instagram_username", data.username, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 60, // 60 days
+    });
+
     return { success: true, data };
   } catch (error) {
     console.error("Failed to fetch user profile:", error);

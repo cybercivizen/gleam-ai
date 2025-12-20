@@ -8,12 +8,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Instagram } from "lucide-react";
+import { Instagram, LogOut } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import {
-  getAccessToken,
+  clearCookies,
+  setupAccessToken,
   getAllMessages,
   getStoredToken,
   getUserProfile,
@@ -23,7 +24,6 @@ import { columns } from "./(messages)/columns";
 
 export default function Home() {
   const [hasToken, setHasToken] = useState<boolean | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [userProfile, setUserProfile] = useState<any>(null);
   const [messages, setMessages] = useState<
@@ -42,6 +42,8 @@ export default function Home() {
 
   const fetchMessagesAsync = async () => {
     setIsTableLoading(true);
+    setMessages([]); // Clear messages to show spinner
+
     const existingToken = await getStoredToken();
 
     if (existingToken) {
@@ -51,13 +53,17 @@ export default function Home() {
     setIsTableLoading(false);
   };
 
+  const handleDisconnect = async () => {
+    await clearCookies();
+    window.location.reload();
+  };
+
   useEffect(() => {
     const handleInstagramAuth = async () => {
-      // Check if token already exists
+      // If user already has token stored in cookies
       const existingToken = await getStoredToken();
       if (existingToken) {
         setHasToken(true);
-        setAccessToken(existingToken);
         console.log("Already authenticated!");
 
         // Fetch user profile
@@ -71,16 +77,16 @@ export default function Home() {
         return;
       }
 
+      //If user not yet authenticated
       //extract code from URL if present
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get("code");
       if (code) {
         console.log("Authorization code:", code);
 
-        const token = await getAccessToken(code);
+        const token = await setupAccessToken(code);
 
         setHasToken(true);
-        setAccessToken(token);
 
         // Fetch user profile
         const profile = await getUserProfile(token);
@@ -133,13 +139,23 @@ export default function Home() {
                         className="w-16 h-16 rounded-full object-cover"
                       />
                     )}
-                    <div className="flex flex-col">
-                      <p className="font-semibold text-lg">
-                        @{userProfile.username}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        ID: {userProfile.user_id}
-                      </p>
+                    <div className="flex items-center gap-4">
+                      <div className="flex flex-col">
+                        <p className="font-semibold text-lg">
+                          @{userProfile.username}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          ID: {userProfile.user_id}
+                        </p>
+                      </div>
+                      <Button
+                        size="icon"
+                        onClick={handleDisconnect}
+                        title="Disconnect"
+                        variant="ghost"
+                      >
+                        <LogOut className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -152,7 +168,11 @@ export default function Home() {
                   >
                     {isTableLoading ? "Refreshing..." : "Refresh Messages"}
                   </Button>
-                  <DataTable columns={columns} data={messages} />
+                  <DataTable
+                    columns={columns}
+                    data={messages}
+                    isLoading={isTableLoading}
+                  />
                 </div>
               </div>
             ) : null}

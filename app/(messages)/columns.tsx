@@ -10,7 +10,7 @@ export const columns: ColumnDef<Message>[] = [
   },
   {
     accessorKey: "content",
-    header: "Content",
+    header: "Message",
   },
   {
     accessorKey: "timestamp",
