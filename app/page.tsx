@@ -157,7 +157,23 @@ export default function Home() {
           }
 
           console.log("✅ Adding new message to state");
-          return [newMessage, ...prev];
+          // Mark message as new for animation
+          const messageWithAnimation = { ...newMessage, isNew: true };
+
+          // Remove the isNew flag after animation completes
+          setTimeout(() => {
+            setMessages((current) =>
+              current.map((msg) =>
+                msg.content === newMessage.content &&
+                msg.timestamp === newMessage.timestamp &&
+                msg.username === newMessage.username
+                  ? { ...msg, isNew: false }
+                  : msg
+              )
+            );
+          }, 500);
+
+          return [messageWithAnimation, ...prev];
         });
       } catch (error) {
         console.error("Failed to parse SSE message:", error);

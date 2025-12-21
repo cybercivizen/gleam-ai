@@ -25,6 +25,11 @@ interface DataTableProps<TData, TValue> {
   isLoading: boolean;
 }
 
+// Type guard to check if row data has isNew property
+function hasIsNewProperty(data: unknown): data is { isNew?: boolean } {
+  return typeof data === "object" && data !== null && "isNew" in data;
+}
+
 export function DataTable<TData, TValue>({
   columns,
   data,
@@ -64,21 +69,30 @@ export function DataTable<TData, TValue>({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              table.getRowModel().rows.map((row) => {
+                const isNewMessage =
+                  hasIsNewProperty(row.original) && row.original.isNew;
+                return (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && "selected"}
+                    className={
+                      isNewMessage
+                        ? "animate-in fade-in slide-in-from-top-2 duration-500 bg-green-100/50"
+                        : ""
+                    }
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
                 <TableCell
@@ -105,6 +119,7 @@ export function DataTable<TData, TValue>({
           {table.getPageCount()}
         </span>
         <Button
+          className="hover:bg-[#2e2e2e] hover:text-white"
           variant="outline"
           size="sm"
           onClick={() => table.previousPage()}
@@ -113,6 +128,7 @@ export function DataTable<TData, TValue>({
           Previous
         </Button>
         <Button
+          className="hover:bg-[#2e2e2e] hover:text-white"
           variant="outline"
           size="sm"
           onClick={() => table.nextPage()}
