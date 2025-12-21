@@ -1,36 +1,132 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Gleam AI
 
-## Getting Started
+AI-powered SaaS tool that integrates with Instagram Business accounts to automatically detect positive product reviews from DMs using sentiment analysis and export them as testimonials.
 
-First, run the development server:
+## Tech Stack
+
+- Next.js 16.1 (App Router) + TypeScript 5
+- Tailwind CSS v4 + shadcn/ui (New York style)
+- TanStack Table v8
+- Prisma 7 (PostgreSQL with PrismaPg adapter)
+- Instagram Graph API v24.0
+
+## Quick Start
+
+### 1. Install Dependencies
+
+```bash
+npm install
+```
+
+### 2. Environment Variables
+
+Create a `.env` file:
+
+```bash
+DATABASE_URL="postgresql://user:password@localhost:5432/gleam"
+INSTAGRAM_CLIENT_ID="your_instagram_app_id"
+INSTAGRAM_CLIENT_SECRET="your_instagram_app_secret"
+INSTAGRAM_REDIRECT_URI="http://localhost:3000"  # or ngrok URL
+META_VERIFY_TOKEN="your_webhook_verify_token"
+NEXT_PUBLIC_IG_LOGIN_EMBEDDING_URL="https://www.instagram.com/oauth/authorize?..."
+```
+
+### 3. Database Setup (Prisma 7)
+
+```bash
+# Generate Prisma Client
+npx prisma generate
+
+# Run migrations (development)
+npx prisma migrate dev --name init
+
+# View database in Prisma Studio
+npx prisma studio
+
+# Reset database (⚠️ dev only)
+npx prisma migrate reset --force
+
+# Check migration status
+npx prisma migrate status
+```
+
+### 4. Run Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Useful Commands
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Development
 
-## Learn More
+```bash
+npm run dev        # Start dev server (localhost:3000)
+npm run build      # Production build
+npm run start      # Start production server
+npm run lint       # Run ESLint
+```
 
-To learn more about Next.js, take a look at the following resources:
+### Prisma
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npx prisma generate              # Regenerate Prisma Client after schema changes
+npx prisma migrate dev           # Create and apply new migration
+npx prisma migrate deploy        # Apply migrations in production
+npx prisma db push               # Push schema changes without migration (prototyping)
+npx prisma studio                # Open visual database editor
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### shadcn/ui
 
-## Deploy on Vercel
+```bash
+npx shadcn@latest add [component]  # Add UI component (e.g., button, table)
+npx shadcn@latest add              # Interactive component selector
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Webhook Testing (ngrok)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+ngrok http 3000                    # Expose localhost for Instagram webhooks
+# Update INSTAGRAM_REDIRECT_URI with ngrok URL
+```
+
+## Project Structure
+
+```
+app/
+  actions.tsx              # Server Actions (Instagram API integration)
+  page.tsx                 # Main UI (OAuth flow, message display)
+  (messages)/              # Message table components
+    columns.tsx            # TanStack Table column definitions
+    data-table.tsx         # Reusable data table with pagination
+  api/
+    webhook/route.ts       # Meta webhook endpoint
+    events/route.ts        # SSE endpoint for real-time updates
+components/ui/             # shadcn/ui components (auto-generated)
+lib/
+  prisma.ts                # Prisma Client singleton
+  types.ts                 # TypeScript types
+  utils.ts                 # Utility functions (cn helper)
+prisma/
+  schema.prisma            # Database schema
+```
+
+## Key Features
+
+- Instagram OAuth 2.0 authentication with long-lived tokens (60 days)
+- Real-time message fetching from Instagram DMs
+- TanStack Table with pagination and animations for new messages
+- SSE (Server-Sent Events) for live updates
+- Webhook integration for real-time Instagram events
+- Prisma 7 with PostgreSQL adapter pattern
+
+## Import Aliases
+
+```typescript
+@/components → components/
+@/lib → lib/
+@/ui → components/ui/
+```
