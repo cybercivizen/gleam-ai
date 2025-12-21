@@ -15,10 +15,10 @@ import { useEffect, useState, useRef } from "react";
 import {
   clearCookies,
   setupAccessToken,
-  getAllMessages,
+  fetchInstagramMessages,
   getStoredToken,
   getUserProfile,
-  getWebhookMessages,
+  getWebhookStoredMessages,
 } from "./actions";
 import { DataTable } from "./(messages)/data-table";
 import { columns } from "./(messages)/columns";
@@ -42,8 +42,8 @@ export default function Home() {
     const existingToken = await getStoredToken();
 
     if (existingToken) {
-      const instagramMessages = await getAllMessages(existingToken);
-      const webhookResult = await getWebhookMessages();
+      const instagramMessages = await fetchInstagramMessages(existingToken);
+      const webhookResult = await getWebhookStoredMessages();
       const webhookMessages = webhookResult.success ? webhookResult.data : [];
 
       const allMessages = [...instagramMessages, ...webhookMessages];

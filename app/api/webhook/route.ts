@@ -48,8 +48,6 @@ export async function POST(req: NextRequest) {
         content: messagingEvent.message,
         timestamp: formatTimestampToDate(messagingEvent.timestamp),
       };
-      console.log("-> Received Message:", message);
-
       // Store in Redis
       await storeMessage(message);
 

@@ -212,7 +212,7 @@ export async function getMessageDetails(
   }
 }
 
-export async function getAllMessages(accessToken: string) {
+export async function fetchInstagramMessages(accessToken: string) {
   const conversationsResult = await getConversations(accessToken);
   const allConversationsIds = conversationsResult.success
     ? conversationsResult.data.data.map((conv: { id: string }) => conv.id)
@@ -250,11 +250,14 @@ export async function getAllMessages(accessToken: string) {
     ?.value as string;
 
   const allMessages: Message[] = allMessagesArrays
-    .filter((res) => res.success && res.data.from?.username !== username)
+    .filter(
+      (res) =>
+        res.success && res.data.from?.username !== username && res.data.message
+    )
     .map((res) => {
       return {
-        username: "@" + (res.data.from?.username || "Unknown"),
-        content: res.data.message || "",
+        username: "@" + res.data.from?.username,
+        content: res.data.message,
         timestamp: formatTimestampToDate(res.data.created_time),
       };
     });
@@ -357,7 +360,7 @@ export async function storeMessage(message: Message) {
   }
 }
 
-export async function getWebhookMessages(limit = 1000) {
+export async function getWebhookStoredMessages(limit = 1000) {
   try {
     // Get messages in reverse chronological order (newest first)
     const messages = await redis.zrange(
