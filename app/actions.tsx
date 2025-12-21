@@ -1,7 +1,9 @@
 "use server";
 
 import { Message } from "@/lib/types";
+import { formatTimestampToDate } from "@/lib/utils";
 import { cookies } from "next/headers";
+import { redis, REDIS_KEYS } from "@/lib/redis";
 
 export async function getStoredToken() {
   const cookieStore = await cookies();
@@ -234,6 +236,7 @@ export async function getAllMessages(accessToken: string) {
 
   // Flatten the array of arrays into a single array
   const allMessagesIds = allMessagesIdsArrays.flat();
+
   const allMessagesArrays = await Promise.all(
     allMessagesIds.map(async (msgId: string) => {
       const messageDetails = await getMessageDetails(msgId, accessToken);
@@ -245,26 +248,14 @@ export async function getAllMessages(accessToken: string) {
   const cookieStore = await cookies();
   const username: string = cookieStore.get("instagram_username")
     ?.value as string;
-  const allMessages: Message[] = allMessagesArrays
-    .filter((res) => res.success && res.data.from?.username != username)
-    .map((res) => {
-      // Format timestamp to readable format
-      const date = new Date(res.data.created_time || "");
-      const formattedTimestamp = date
-        .toLocaleString("en-US", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        })
-        .replace(/(\d+)\/(\d+)\/(\d+),/, "$3-$1-$2");
 
+  const allMessages: Message[] = allMessagesArrays
+    .filter((res) => res.success && res.data.from?.username !== username)
+    .map((res) => {
       return {
         username: "@" + (res.data.from?.username || "Unknown"),
         content: res.data.message || "",
-        timestamp: formattedTimestamp,
+        timestamp: formatTimestampToDate(res.data.created_time),
       };
     });
   return allMessages;
@@ -304,6 +295,109 @@ export async function getUserProfile(accessToken: string) {
       success: false,
       error:
         error instanceof Error ? error.message : "Failed to fetch user profile",
+    };
+  }
+}
+
+export async function getInstagramUsernameById(
+  accessToken: string,
+  userId: string
+) {
+  try {
+    const response = await fetch(
+      `https://graph.instagram.com/v24.0/${userId}?fields=username&access_token=${accessToken}`
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("Instagram API error details:", errorData);
+      throw new Error(
+        `Instagram API error: ${response.statusText} - ${JSON.stringify(
+          errorData
+        )}`
+      );
+    }
+
+    const data = await response.json();
+    return { success: true, data: data.username };
+  } catch (error) {
+    console.error("Failed to fetch username by ID:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch username by ID",
+    };
+  }
+}
+
+// Redis operations
+export async function storeMessage(message: Message) {
+  try {
+    // Create unique key using content + timestamp + username
+    const messageKey = `${message.timestamp}:${message.username}:${message.content}`;
+    const score = new Date(message.timestamp).getTime();
+
+    // Store in Redis sorted set (score = timestamp for chronological ordering)
+    await redis.zadd(
+      REDIS_KEYS.messages,
+      score,
+      JSON.stringify({ key: messageKey, ...message })
+    );
+
+    console.log("✅ Message stored in Redis:", message);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to store message in Redis:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to store message",
+    };
+  }
+}
+
+export async function getWebhookMessages(limit = 1000) {
+  try {
+    // Get messages in reverse chronological order (newest first)
+    const messages = await redis.zrange(
+      REDIS_KEYS.messages,
+      0,
+      limit - 1,
+      "REV"
+    );
+
+    const parsedMessages: Message[] = messages.map((msg) => {
+      const parsed = JSON.parse(msg);
+      // Remove the key field we added for uniqueness
+      const { key, ...message } = parsed;
+      return message;
+    });
+
+    console.log(`📦 Retrieved ${parsedMessages.length} messages from Redis`);
+    return { success: true, data: parsedMessages };
+  } catch (error) {
+    console.error("Failed to fetch messages from Redis:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to fetch messages",
+      data: [],
+    };
+  }
+}
+
+export async function clearWebhookMessages() {
+  try {
+    await redis.del(REDIS_KEYS.messages);
+    console.log("🗑️ Cleared all messages from Redis");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to clear messages from Redis:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to clear messages",
     };
   }
 }

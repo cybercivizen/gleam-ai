@@ -11,44 +11,61 @@ import {
 import { Instagram, LogOut } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   clearCookies,
   setupAccessToken,
   getAllMessages,
   getStoredToken,
   getUserProfile,
+  getWebhookMessages,
 } from "./actions";
 import { DataTable } from "./(messages)/data-table";
 import { columns } from "./(messages)/columns";
+import { Message } from "@/lib/types";
 
 export default function Home() {
   const [hasToken, setHasToken] = useState<boolean | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [userProfile, setUserProfile] = useState<any>(null);
-  const [messages, setMessages] = useState<
-    Array<{
-      username: string;
-      content: string;
-      timestamp: string;
-    }>
-  >([]);
-
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isTableLoading, setIsTableLoading] = useState<boolean>(false);
 
-  const URL =
-    process.env.NEXT_PUBLIC_IG_LOGIN_EMBEDDING_URL ||
-    "https://www.instagram.com/oauth/authorize?force_reauth=true&client_id=1520790535695330&redirect_uri=https://bd89a4fd1c1a.ngrok-free.app&response_type=code&scope=instagram_business_basic%2Cinstagram_business_manage_messages%2Cinstagram_business_manage_comments%2Cinstagram_business_content_publish%2Cinstagram_business_manage_insights";
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  const URL = process.env.NEXT_PUBLIC_IG_LOGIN_EMBEDDING_URL as string;
 
   const fetchMessagesAsync = async () => {
     setIsTableLoading(true);
-    setMessages([]); // Clear messages to show spinner
+    setMessages([]);
 
     const existingToken = await getStoredToken();
 
     if (existingToken) {
-      const allMessages = await getAllMessages(existingToken);
-      setMessages(allMessages);
+      const instagramMessages = await getAllMessages(existingToken);
+      const webhookResult = await getWebhookMessages();
+      const webhookMessages = webhookResult.success ? webhookResult.data : [];
+
+      const allMessages = [...instagramMessages, ...webhookMessages];
+
+      const uniqueMessages = allMessages.filter(
+        (msg, index, self) =>
+          index ===
+          self.findIndex(
+            (m) =>
+              m.content === msg.content &&
+              m.timestamp === msg.timestamp &&
+              m.username === msg.username
+          )
+      );
+
+      uniqueMessages.sort((a, b) => {
+        const dateA = new Date(a.timestamp).getTime();
+        const dateB = new Date(b.timestamp).getTime();
+        return dateB - dateA;
+      });
+
+      setMessages(uniqueMessages);
     }
     setIsTableLoading(false);
   };
@@ -58,27 +75,24 @@ export default function Home() {
     window.location.reload();
   };
 
+  // Auth setup | Cookies setup | Initial messages load
   useEffect(() => {
     const handleInstagramAuth = async () => {
-      // If user already has token stored in cookies
       const existingToken = await getStoredToken();
       if (existingToken) {
         setHasToken(true);
         console.log("Already authenticated!");
 
-        // Fetch user profile
         const profile = await getUserProfile(existingToken);
         if (profile.success) {
           setUserProfile(profile.data);
         }
 
-        await fetchMessagesAsync();
+        // await fetchMessagesAsync();
 
         return;
       }
 
-      //If user not yet authenticated
-      //extract code from URL if present
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get("code");
       if (code) {
@@ -88,7 +102,6 @@ export default function Home() {
 
         setHasToken(true);
 
-        // Fetch user profile
         const profile = await getUserProfile(token);
         if (profile.success) {
           setUserProfile(profile.data);
@@ -102,8 +115,64 @@ export default function Home() {
       console.log("Welcome to Gleam AI!");
     };
 
+    const fetchMessages = async () => {
+      await fetchMessagesAsync();
+    };
+
     handleInstagramAuth();
+    fetchMessages();
   }, []);
+
+  // SSE setup and event handlers
+  useEffect(() => {
+    if (!hasToken) return;
+
+    const eventSource = new EventSource("/api/events");
+    eventSourceRef.current = eventSource;
+
+    eventSource.onopen = () => {
+      console.log("✅ SSE connection opened successfully");
+    };
+
+    eventSource.onmessage = (event) => {
+      // Ignore keep-alive messages
+      console.log("event", event);
+      if (!event.data || event.data.trim() === "") return;
+
+      try {
+        const newMessage: Message = JSON.parse(event.data);
+        console.log("📨 Received real-time message:", newMessage);
+
+        setMessages((prev) => {
+          const exists = prev.some(
+            (m) =>
+              m.content === newMessage.content &&
+              m.timestamp === newMessage.timestamp &&
+              m.username === newMessage.username
+          );
+
+          if (exists) {
+            console.log("⚠️ Duplicate message, skipping");
+            return prev;
+          }
+
+          console.log("✅ Adding new message to state");
+          return [newMessage, ...prev];
+        });
+      } catch (error) {
+        console.error("Failed to parse SSE message:", error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error("❌ SSE error:", error);
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [hasToken]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 gap-8">
