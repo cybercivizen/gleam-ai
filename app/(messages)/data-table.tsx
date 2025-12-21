@@ -50,10 +50,12 @@ export function DataTable<TData, TValue>({
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
+                  const isMessageHeader = header.column.id === "content";
                   return (
                     <TableHead
                       key={header.id}
                       className="text-black font-semibold"
+                      style={isMessageHeader ? { width: "100%" } : undefined}
                     >
                       {header.isPlaceholder
                         ? null
