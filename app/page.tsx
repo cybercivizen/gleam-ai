@@ -87,17 +87,12 @@ export default function Home() {
         if (profile.success) {
           setUserProfile(profile.data);
         }
-
-        // await fetchMessagesAsync();
-
         return;
       }
 
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get("code");
       if (code) {
-        console.log("Authorization code:", code);
-
         const token = await setupAccessToken(code);
 
         setHasToken(true);
