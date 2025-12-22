@@ -20,8 +20,8 @@ import {
   getUserProfile,
   getWebhookStoredMessages,
 } from "./actions";
-import { DataTable } from "./(messages)/data-table";
-import { columns } from "./(messages)/columns";
+import { DataTable } from "./(messages-table)/data-table";
+import { columns } from "./(messages-table)/columns";
 import { Message } from "@/lib/types";
 
 export default function Home() {
@@ -131,12 +131,10 @@ export default function Home() {
 
     eventSource.onmessage = (event) => {
       // Ignore keep-alive messages
-      console.log("event", event);
       if (!event.data || event.data.trim() === "") return;
 
       try {
         const newMessage: Message = JSON.parse(event.data);
-        console.log("📨 Received real-time message:", newMessage);
 
         setMessages((prev) => {
           const exists = prev.some(
@@ -151,7 +149,6 @@ export default function Home() {
             return prev;
           }
 
-          console.log("✅ Adding new message to state");
           // Mark message as new for animation
           const messageWithAnimation = { ...newMessage, isNew: true };
 

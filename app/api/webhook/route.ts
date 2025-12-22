@@ -1,4 +1,4 @@
-import { getInstagramUsernameById, storeMessage } from "@/app/actions";
+import { getInstagramUsernameById, saveMessage } from "@/app/actions";
 import { Message, MessagingEvent } from "@/lib/types";
 import { formatTimestampToDate } from "@/lib/utils";
 import { NextRequest, NextResponse } from "next/server";
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
         timestamp: formatTimestampToDate(messagingEvent.timestamp),
       };
       // Store in Redis
-      await storeMessage(message);
+      await saveMessage(message);
 
       // Broadcast to connected clients via SSE
       broadcastMessage(message);

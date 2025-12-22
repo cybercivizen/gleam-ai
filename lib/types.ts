@@ -10,3 +10,10 @@ export type MessagingEvent = {
   timestamp: number;
   message: string;
 };
+
+export type User = {
+  username: string;
+  accessToken: string;
+  lastAccess: Date;
+  createdAt: Date;
+};

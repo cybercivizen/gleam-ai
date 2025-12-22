@@ -1,9 +1,12 @@
 "use server";
 
-import { Message } from "@/lib/types";
+import { Message, User } from "@/lib/types";
 import { formatTimestampToDate } from "@/lib/utils";
 import { cookies } from "next/headers";
 import { redis, REDIS_KEYS } from "@/lib/redis";
+import { createMessage } from "@/lib/repositories/messages";
+import { users } from "@/generated/prisma/client";
+import { createUser } from "@/lib/repositories/users";
 
 export async function getStoredToken() {
   const cookieStore = await cookies();
@@ -291,6 +294,15 @@ export async function getUserProfile(accessToken: string) {
       maxAge: 60 * 60 * 24 * 60, // 60 days
     });
 
+    const user: User = {
+      username: data.username,
+      accessToken: accessToken,
+      lastAccess: new Date(),
+      createdAt: new Date(),
+    };
+
+    await createUser(user);
+
     return { success: true, data };
   } catch (error) {
     console.error("Failed to fetch user profile:", error);
@@ -336,26 +348,19 @@ export async function getInstagramUsernameById(
 }
 
 // Redis operations
-export async function storeMessage(message: Message) {
+export async function saveMessage(message: Message) {
   try {
-    // Create unique key using content + timestamp + username
-    const messageKey = `${message.timestamp}:${message.username}:${message.content}`;
-    const score = new Date(message.timestamp).getTime();
-
-    // Store in Redis sorted set (score = timestamp for chronological ordering)
-    await redis.zadd(
-      REDIS_KEYS.messages,
-      score,
-      JSON.stringify({ key: messageKey, ...message })
-    );
-
-    console.log("✅ Message stored in Redis:", message);
+    await createMessage({
+      username: message.username,
+      content: message.content,
+      timestamp: message.timestamp,
+    });
     return { success: true };
   } catch (error) {
-    console.error("Failed to store message in Redis:", error);
+    console.error("Failed to save message:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to store message",
+      error: error instanceof Error ? error.message : "Failed to save message",
     };
   }
 }

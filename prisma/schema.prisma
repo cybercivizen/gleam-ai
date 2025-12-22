@@ -1,14 +1,26 @@
-datasource db {
-  provider = "postgresql"
-}
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
 }
 
-model User {
-  id    Int     @id @default(autoincrement())
-  email String  @unique
-  name  String?
+datasource db {
+  provider = "postgresql"
+}
+
+model messages {
+  id              Int       @id @default(autoincrement())
+  sender_username String?
+  content         String?
+  date            DateTime? @db.Timestamp(6)
+  user_id         Int?
+  users           users?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user")
+}
+
+model users {
+  id           Int        @id @default(autoincrement())
+  username     String?
+  access_token String?
+  last_access  DateTime?  @db.Timestamp(6)
+  date_created DateTime?  @db.Timestamp(6)
+  messages     messages[]
 }
