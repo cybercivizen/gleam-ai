@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
     body.object === "instagram" &&
     body.entry[0]?.messaging[0]?.message?.text
   ) {
+    console.log("Received webhook event:", body.entry[0].messaging[0]);
     const messagingEvent: MessagingEvent = {
       senderId: body.entry[0].messaging[0].sender.id,
       timestamp: body.entry[0].messaging[0].timestamp,
@@ -48,8 +49,8 @@ export async function POST(req: NextRequest) {
         content: messagingEvent.message,
         timestamp: formatTimestampToDate(messagingEvent.timestamp),
       };
-      // Store in Redis
-      await saveMessage(message);
+      // Save message to database
+      await saveMessage(message, body.entry[0].messaging[0].recipient.id);
 
       // Broadcast to connected clients via SSE
       broadcastMessage(message);

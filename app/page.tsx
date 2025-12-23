@@ -18,16 +18,16 @@ import {
   fetchInstagramMessages,
   getStoredToken,
   getUserProfile,
-  getWebhookStoredMessages,
+  getSavedMessages,
 } from "./actions";
 import { DataTable } from "./(messages-table)/data-table";
 import { columns } from "./(messages-table)/columns";
-import { Message } from "@/lib/types";
+import { Message, UserProfile } from "@/lib/types";
 
 export default function Home() {
   const [hasToken, setHasToken] = useState<boolean | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTableLoading, setIsTableLoading] = useState<boolean>(false);
 
@@ -42,8 +42,18 @@ export default function Home() {
     const existingToken = await getStoredToken();
 
     if (existingToken) {
+      const profile = await getUserProfile(existingToken);
+      if (profile.success) {
+        setUserProfile({
+          instagramId: profile.data.user_id,
+          username: profile.data.username,
+          profilePictureUrl: profile.data.profile_picture_url,
+        });
+      }
       const instagramMessages = await fetchInstagramMessages(existingToken);
-      const webhookResult = await getWebhookStoredMessages();
+      const webhookResult = await getSavedMessages(
+        profile.data.user_id as string
+      );
       const webhookMessages = webhookResult.success ? webhookResult.data : [];
 
       const allMessages = [...instagramMessages, ...webhookMessages];
@@ -84,8 +94,13 @@ export default function Home() {
         console.log("Already authenticated!");
 
         const profile = await getUserProfile(existingToken);
+        console.log("User profile:", profile);
         if (profile.success) {
-          setUserProfile(profile.data);
+          setUserProfile({
+            instagramId: profile.data.user_id,
+            username: profile.data.username,
+            profilePictureUrl: profile.data.profile_picture_url,
+          });
         }
         return;
       }
@@ -99,7 +114,11 @@ export default function Home() {
 
         const profile = await getUserProfile(token);
         if (profile.success) {
-          setUserProfile(profile.data);
+          setUserProfile({
+            instagramId: profile.data.user_id,
+            username: profile.data.username,
+            profilePictureUrl: profile.data.profile_picture_url,
+          });
         }
 
         window.history.replaceState({}, document.title, "/");
@@ -207,9 +226,9 @@ export default function Home() {
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-3">
-                    {userProfile.profile_picture_url && (
+                    {userProfile.profilePictureUrl && (
                       <Image
-                        src={userProfile.profile_picture_url}
+                        src={userProfile.profilePictureUrl}
                         alt={userProfile.username}
                         width={64}
                         height={64}
@@ -222,7 +241,7 @@ export default function Home() {
                           @{userProfile.username}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          ID: {userProfile.user_id}
+                          ID: {userProfile.instagramId}
                         </p>
                       </div>
                       <Button

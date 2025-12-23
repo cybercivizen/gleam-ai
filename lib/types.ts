@@ -13,7 +13,14 @@ export type MessagingEvent = {
 
 export type User = {
   username: string;
+  instagramId: string;
   accessToken: string;
-  lastAccess: Date;
-  createdAt: Date;
+  lastAccess?: Date;
+  createdAt?: Date;
+};
+
+export type UserProfile = {
+  instagramId: string;
+  username: string;
+  profilePictureUrl: string;
 };

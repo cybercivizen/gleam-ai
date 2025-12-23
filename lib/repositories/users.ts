@@ -5,20 +5,28 @@ import { User } from "../types";
 
 export async function createUser(user: User) {
   try {
-    const data = await prisma.users.create({
-      data: {
-        username: user.username.replace(/^@/, ""),
+    const data = await prisma.users.upsert({
+      where: {
+        instagram_id: user.instagramId,
+      },
+      update: {
         access_token: user.accessToken,
-        last_access: user.lastAccess,
-        date_created: user.createdAt,
+        last_access: new Date(),
+      },
+      create: {
+        username: user.username.replace(/^@/, ""),
+        instagram_id: user.instagramId,
+        access_token: user.accessToken,
+        last_access: new Date(),
+        date_created: new Date(),
       },
     });
     return { success: true, data };
   } catch (error) {
-    console.error("Failed to create message:", error);
+    console.error("Failed to create/update user:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Create failed",
+      error: error instanceof Error ? error.message : "Upsert failed",
     };
   }
 }

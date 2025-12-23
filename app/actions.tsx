@@ -3,9 +3,7 @@
 import { Message, User } from "@/lib/types";
 import { formatTimestampToDate } from "@/lib/utils";
 import { cookies } from "next/headers";
-import { redis, REDIS_KEYS } from "@/lib/redis";
-import { createMessage } from "@/lib/repositories/messages";
-import { users } from "@/generated/prisma/client";
+import { createMessage, getMessagesByUser } from "@/lib/repositories/messages";
 import { createUser } from "@/lib/repositories/users";
 
 export async function getStoredToken() {
@@ -296,9 +294,8 @@ export async function getUserProfile(accessToken: string) {
 
     const user: User = {
       username: data.username,
+      instagramId: data.user_id,
       accessToken: accessToken,
-      lastAccess: new Date(),
-      createdAt: new Date(),
     };
 
     await createUser(user);
@@ -348,13 +345,16 @@ export async function getInstagramUsernameById(
 }
 
 // Redis operations
-export async function saveMessage(message: Message) {
+export async function saveMessage(message: Message, instagramId: string) {
   try {
-    await createMessage({
-      username: message.username,
-      content: message.content,
-      timestamp: message.timestamp,
-    });
+    await createMessage(
+      {
+        username: message.username,
+        content: message.content,
+        timestamp: message.timestamp,
+      },
+      instagramId
+    );
     return { success: true };
   } catch (error) {
     console.error("Failed to save message:", error);
@@ -365,47 +365,26 @@ export async function saveMessage(message: Message) {
   }
 }
 
-export async function getWebhookStoredMessages(limit = 1000) {
+export async function getSavedMessages(instagramId: string, limit = 1000) {
   try {
-    // Get messages in reverse chronological order (newest first)
-    const messages = await redis.zrange(
-      REDIS_KEYS.messages,
-      0,
-      limit - 1,
-      "REV"
-    );
-
-    const parsedMessages: Message[] = messages.map((msg) => {
-      const parsed = JSON.parse(msg);
-      // Remove the key field we added for uniqueness
-      const { key, ...message } = parsed;
-      return message;
+    console.log("instagramId:", instagramId);
+    const messages = await getMessagesByUser(instagramId, limit);
+    const parsedMessages = messages.data.map((msg) => {
+      return {
+        username: "@" + msg.sender_username,
+        content: msg.content,
+        timestamp: formatTimestampToDate(msg.date as Date),
+      } as Message;
     });
-
-    console.log(`📦 Retrieved ${parsedMessages.length} messages from Redis`);
+    console.log(`📦 Retrieved ${parsedMessages.length} messages`);
     return { success: true, data: parsedMessages };
   } catch (error) {
-    console.error("Failed to fetch messages from Redis:", error);
+    console.error("Failed to fetch messages:", error);
     return {
       success: false,
       error:
         error instanceof Error ? error.message : "Failed to fetch messages",
       data: [],
-    };
-  }
-}
-
-export async function clearWebhookMessages() {
-  try {
-    await redis.del(REDIS_KEYS.messages);
-    console.log("🗑️ Cleared all messages from Redis");
-    return { success: true };
-  } catch (error) {
-    console.error("Failed to clear messages from Redis:", error);
-    return {
-      success: false,
-      error:
-        error instanceof Error ? error.message : "Failed to clear messages",
     };
   }
 }
